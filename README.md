@@ -8,3 +8,6 @@ NOTES
   + Test: seda-bus/parallel_verify.py
     + Use python3.10 first to verify sequential processing
     + Switch to -nogil to verify parallel processing
+    + Test 1:
+      + 3.10: 3.46 seconds
+      + 3.14t: 1.09 seconds
