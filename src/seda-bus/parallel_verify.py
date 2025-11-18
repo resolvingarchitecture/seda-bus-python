@@ -5,29 +5,40 @@ import sys
 print("Welcome...")
 print("Is the GIL disabled:", getattr(sys,'_is_gil_enabled','No attribute'))
 
-def worker(name):
-    for n in range(100000):
+def worker(name, amount_of_work):
+    for n in range(amount_of_work):
         print(name+str(n))
 
-threads = []
+def test(num_workers, amount_of_work) :
 
-for i in range(4):
-    t = threading.Thread(target=worker, args=str(i+1))
-    threads.append(t)
+    threads = []
 
-begin = time.time()
+    work_per_worker = amount_of_work // num_workers
+    for i in range(num_workers):
+        t = threading.Thread(target=worker, args=[str(i+1),work_per_worker])
+        threads.append(t)
 
-for t in threads:
-    print("Starting", t.name)
-    t.start()
-    # time.sleep(1)
+    begin = time.time()
 
-for t in threads:
-    t.join()
-    print("Complete", t.name)
+    for t in threads:
+        print("Starting", t.name)
+        t.start()
+        # time.sleep(1)
 
-end = time.time()
+    for t in threads:
+        t.join()
+        print("Complete", t.name)
 
-elapsed = end-begin
+    end = time.time()
 
-print("Elapsed Time: "+str(elapsed))
+    elapsed = end-begin
+
+    return elapsed
+
+one_worker = str(test(1,400000))
+four_workers = str(test(4,400000))
+twelve_workers = str(test(12,400000))
+
+print("Elapsed Time 1,400k: "+one_worker)
+print("Elapsed Time 4,400k: "+four_workers)
+print("Elapsed Time 12,400k: "+twelve_workers)
