@@ -174,7 +174,7 @@ class WorkerThreadPool(threading.Thread):
 
 class SEDABus(LifeCycle):
 
-    pool = WorkerThreadPool()
+    pool = WorkerThreadPool(max_workers=5)
     named_channels = {}
     callbacks = {}
 
@@ -231,7 +231,7 @@ class SEDABus(LifeCycle):
 
 if __name__ == "__main__":
     print("Welcome to SEDA Bus...")
-    gil_disabled = not sys._is_gil_enabled()
+    gil_disabled = getattr(sys, '_is_gil_enabled', False)
     print("GIL disabled:", gil_disabled)
     if not gil_disabled:
         print("Gil enabled - SEDA Bus can not work so exiting.")
