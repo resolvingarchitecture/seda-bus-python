@@ -1,4 +1,3 @@
-import hashcash
 import threading
 import time
 import sys
