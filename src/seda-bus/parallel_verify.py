@@ -3,12 +3,12 @@ import time
 import sys
 
 print("Welcome...")
-print("Is the GIL disabled:", not sys._is_gil_enabled())
+print("Is the GIL disabled:", getattr(sys,'_is_gil_enabled','No attribute'))
 
 def worker(name):
     start = time.time()
-    while time.time() - start < 5:
-        time.sleep(1)
+    while time.time() - start < 1:
+        # time.sleep(1)
         print(name)
 
 threads = []
@@ -20,7 +20,7 @@ for i in range(4):
 for t in threads:
     print("Starting", t.name)
     t.start()
-    time.sleep(1)
+    # time.sleep(1)
 
 for t in threads:
     t.join()
