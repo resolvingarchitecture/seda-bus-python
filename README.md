@@ -8,6 +8,14 @@ NOTES
   + Test: seda-bus/parallel_verify.py
     + Use python3.10 first to verify sequential processing
     + Switch to -nogil to verify parallel processing
-    + Test 1:
-      + 3.10: 3.46 seconds
-      + 3.14t: 1.09 seconds
+    + Use interpreter parameter PYTHON_GIL=0 to disable GIL
+    + Tests:
+      + 1: 1 worker, 400k work total
+        + 3.14: 0.77 seconds
+        + 3.14t (GIL Disabled): 0.99 seconds
+      + 2: 4 workers, 400k work total (100k per worker)
+        + 3.14: 4.01 seconds
+        + 3.14t (GIL Disabled): 1.02 seconds
+      + 3: 12 workers, 400k work total (30k per worker)
+        + 3.14: 5.70 seconds
+        + 3.14t (GIL Disabled): 1.50 seconds
