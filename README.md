@@ -56,16 +56,16 @@ NOTES
           + 3.10: 8.13 seconds
           + 3.14: 6.51 seconds
           + 3.14t (GIL Disabled): 1.2 seconds
-        + 20 Difficulty
-          + 1: 1 worker, 12 resources
-            + 3.10: 13.36 seconds
-            + 3.14: 12.62 seconds
-            + 3.14t (GIL Disabled): 10.62 seconds
-          + 2: 4 workers, 3 resources per worker (12 resources total)
-            + 3.10: 22.27 seconds
-            + 3.14: 13.75 seconds
-            + 3.14t (GIL Disabled): 5.17 seconds
-          + 3: 12 workers, 1 resource per worker (12 resources total)
-            + 3.10: 25.47 seconds
-            + 3.14: 19.48 seconds
-            + 3.14t (GIL Disabled): 4.08 seconds
+      + 20 Difficulty
+        + 1: 1 worker, 12 resources
+          + 3.10: 13.36 seconds
+          + 3.14: 12.62 seconds
+          + 3.14t (GIL Disabled): 10.62 seconds
+        + 2: 4 workers, 3 resources per worker (12 resources total)
+          + 3.10: 22.27 seconds
+          + 3.14: 13.75 seconds
+          + 3.14t (GIL Disabled): 5.17 seconds
+        + 3: 12 workers, 1 resource per worker (12 resources total)
+          + 3.10: 25.47 seconds
+          + 3.14: 19.48 seconds
+          + 3.14t (GIL Disabled): 4.08 seconds
