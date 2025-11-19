@@ -8,14 +8,14 @@ NOTES
 + MUST use free-threaded (-nogil) version of Python.
 + Install: sudo apt-get install python3.14-nogil
 + Verify Version: python3.14-nogil -VV
-+ Verify Parallelization: seda-bus/parallel_verify.py
++ Verify Parallelization:
   + Use python3.14 first to verify sequential processing
     + Install: sudo apt-get install python3.14 
     + Verify Version: python3.14 -VV
   + Switch to -nogil to verify parallel processing
     + Use interpreter parameter PYTHON_GIL=0 to disable GIL
   + Tests:
-    + SHA Hashing (deterministic)
+    + SHA Hashing (deterministic) - test_parallel_sha.py
       + SHA-1
         + 1: 1 Worker, 1.2m hashes
           + 3.10: 1.45 seconds
@@ -42,7 +42,7 @@ NOTES
           + 3.10: 4.24 seconds
           + 3.14: 4.15 seconds
           + 3.14t (GIL Disabled): 0.51 seconds
-    + Hashcash (non-deterministic)
+    + Hashcash (non-deterministic) - tests/test_parallel_hashcash.py
       + 18 Difficulty
         + 1: 1 worker, 12 resources
           + 3.10: 1.84 seconds
