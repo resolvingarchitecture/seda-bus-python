@@ -157,7 +157,7 @@ class WorkerThreadPool(threading.Thread):
         self.pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="SBW-")
 
     def run(self):
-        running = True
+        self.running = True
         while running:
             time.sleep(0.1)
             for c in self.channels:
