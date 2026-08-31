@@ -104,6 +104,14 @@ sudo apt install python3.14-nogil           # or build with --disable-gil
 python3.14t -VV
 ```
 
+## Companion implementations
+
+Same design, other languages:
+
+* [seda-bus](https://github.com/resolvingarchitecture/seda-bus) — Rust, zero-dependency, real shared thread pool
+* [seda-bus-java](https://github.com/resolvingarchitecture/seda-bus-java) — Java, with optional guaranteed-delivery persistence
+* [seda-bus-ts](https://github.com/resolvingarchitecture/seda-bus-ts) — TypeScript / Node, event-loop model
+
 ## Status
 
 `0.1.0` — working core, tested. Not published to PyPI yet.
