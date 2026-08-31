@@ -1,2 +1,10 @@
-.idea
-.venv
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv*/
+venv/
+.idea/
+*.iml
+.pytest_cache/

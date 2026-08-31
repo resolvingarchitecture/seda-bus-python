@@ -2,7 +2,7 @@ import threading
 import time
 import sys
 
-from tests.hashcash import hashcash_mint
+from hashcash import hashcash_mint
 
 print("Welcome...")
 print("Is the GIL disabled:", getattr(sys,'_is_gil_enabled','No attribute'))

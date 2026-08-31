@@ -1,71 +1,109 @@
-# Staged Event-Driven Architecture Bus
-A form of message bus avoiding the high overhead of thread-based concurrency 
-models where channels get their own inbound and outbound queues.
+# seda-bus (Python)
 
-**IN-PROGRESS**
+A small, broker-less, **staged** message bus. Work is decomposed into stages
+(`Channel`s) connected by bounded queues; a single shared worker pool drains
+them; each stage has its own concurrency limit so none can monopolise the pool.
 
-NOTES
-+ MUST use free-threaded (-nogil) version of Python.
-+ Install: sudo apt-get install python3.14-nogil
-+ Verify Version: python3.14-nogil -VV
-+ Verify Parallelization:
-  + Use python3.14 first to verify sequential processing
-    + Install: sudo apt-get install python3.14 
-    + Verify Version: python3.14 -VV
-  + Switch to -nogil to verify parallel processing
-    + Use interpreter parameter PYTHON_GIL=0 to disable GIL
-  + Tests:
-    + SHA Hashing (deterministic) - test_parallel_sha.py
-      + SHA-1
-        + 1: 1 Worker, 1.2m hashes
-          + 3.10: 1.45 seconds
-          + 3.14: 1.33 seconds
-          + 3.14t (GIL Disabled): 1.97 seconds
-        + 2: 4 Workers, 300k hashes each
-          + 3.10: 3.77 seconds
-          + 3.14: 3.14 seconds
-          + 3.14t (GIL Disabled): 0.61 seconds
-        + 3: 12 Workers, 100k hashes each
-          + 3.10: 3.64 seconds
-          + 3.14: 3.25 seconds
-          + 3.14t (GIL Disabled): 0.48 seconds
-      + SHA-512
-        + 1: 1 Worker, 1.2m hashes
-          + 3.10: 1.69 seconds
-          + 3.14: 1.65 seconds
-          + 3.14t (GIL Disabled): 2.21 seconds
-        + 2: 4 Workers, 300k hashes each
-          + 3.10: 4.42 seconds
-          + 3.14: 3.90 seconds
-          + 3.14t (GIL Disabled): 0.68 seconds
-        + 3: 12 Workers, 100k hashes each
-          + 3.10: 4.24 seconds
-          + 3.14: 4.15 seconds
-          + 3.14t (GIL Disabled): 0.51 seconds
-    + Hashcash (non-deterministic) - tests/test_parallel_hashcash.py
-      + 18 Difficulty
-        + 1: 1 worker, 12 resources
-          + 3.10: 1.84 seconds
-          + 3.14: 2.26 seconds
-          + 3.14t (GIL Disabled): 3.85 seconds
-        + 2: 4 workers, 3 resources per worker (12 resources total)
-          + 3.10: 8.55 seconds
-          + 3.14: 7.39 seconds
-          + 3.14t (GIL Disabled): 1.57 seconds
-        + 3: 12 workers, 1 resource per worker (12 resources total)
-          + 3.10: 8.13 seconds
-          + 3.14: 6.51 seconds
-          + 3.14t (GIL Disabled): 1.2 seconds
-      + 20 Difficulty
-        + 1: 1 worker, 12 resources
-          + 3.10: 13.36 seconds
-          + 3.14: 12.62 seconds
-          + 3.14t (GIL Disabled): 10.62 seconds
-        + 2: 4 workers, 3 resources per worker (12 resources total)
-          + 3.10: 22.27 seconds
-          + 3.14: 13.75 seconds
-          + 3.14t (GIL Disabled): 5.17 seconds
-        + 3: 12 workers, 1 resource per worker (12 resources total)
-          + 3.10: 25.47 seconds
-          + 3.14: 19.48 seconds
-          + 3.14t (GIL Disabled): 4.08 seconds
+```python
+from seda_bus import SEDABus, Envelope, Delivery
+
+with SEDABus(workers=8) as bus:
+    bus.channel("ingest",    capacity=1000)
+    bus.channel("transform", capacity=1000, concurrency=4)
+    bus.channel("sink",      capacity=1000)
+
+    bus.subscribe("ingest",    lambda e: True)
+    bus.subscribe("transform", lambda e: (e.__setattr__("payload", e.payload.upper()), True)[1])
+    bus.subscribe("sink",      lambda e: (print(e.payload), True)[1])
+
+    bus.publish(
+        Envelope(to="ingest", payload="hello", slip=["transform", "sink"]),
+        on_complete=lambda e: print("done", e.id),
+    )
+```
+
+## Why this exists
+
+SEDA's staged-concurrency model — many CPU-bound stages, each with its own
+queue, all fed by one thread pool — was **pointless in CPython under the GIL**:
+threads don't run Python bytecode in parallel, so you reached for
+`multiprocessing` (IPC + pickling costs) or `asyncio` (only helps I/O-bound
+stages).
+
+Free-threaded CPython (PEP 703; experimental in 3.13, improved in 3.14) is the
+first build where the model is a good fit for pure-Python stages. This repo is a
+working demonstration of that, plus the measurements behind it.
+
+## Measurements
+
+**The bus itself**, 24 CPU-bound hashing envelopes through one stage, 12-core
+machine, `python3.14` vs `python3.14t` (`PYTHON_GIL=0`):
+
+| workers | 3.14 (GIL) | 3.14t (free-threaded) |
+|--------:|-----------:|----------------------:|
+| 1       | 0.54 s     | 0.71 s                |
+| 4       | 0.78 s     | 0.35 s                |
+| 12      | 0.79 s     | 0.27 s                |
+
+Under the GIL, adding workers makes it *slower* (contention, no parallelism).
+Free-threaded, it scales ~2.6× across the pool — after paying a ~1.3× single-thread
+tax (free-threaded builds lose the specialising adaptive interpreter and add
+per-object locking; the gap is closing release over release).
+
+**Raw interpreter** (no bus — `bench/bench_sha.py`, `bench/bench_hashcash.py`),
+earlier runs on the same machine:
+
+| workload | 3.14 (GIL) | 3.14t | speedup |
+|---|---:|---:|---:|
+| SHA-1, 1 worker, 1.2M hashes | 1.33 s | 1.97 s | 0.67× |
+| SHA-1, 4 workers | 3.14 s | 0.61 s | 5.1× |
+| SHA-1, 12 workers | 3.25 s | 0.48 s | 6.8× |
+| hashcash-18, 12 workers | 6.51 s | 1.20 s | 5.4× |
+
+The bus's speedup is lower than the raw interpreter's because a real staged bus
+pays for queue locks, permits, and scheduling. That coordination cost is the
+point of measuring it end-to-end rather than trusting the microbenchmark.
+
+## What this is / isn't
+
+**Is:** bounded per-stage queues (admission control), a back-pressure policy per
+stage (`BLOCK` / `REJECT` / `DROP_NEWEST` / `DROP_OLDEST`), per-stage concurrency
+limits, point-to-point (round-robin) or pub/sub delivery, routing slips
+(itineraries), retry + dead-letter channels, per-stage metrics, graceful
+shutdown that drains.
+
+**Isn't (yet):** SEDA's original *adaptive controller* — the part that watched
+per-stage latency and queue depth at runtime and re-tuned thread allocation and
+shed load automatically. Everything here is static configuration. The controller
+is the interesting next step and the reason the model is worth revisiting now
+that free-threading makes it matter.
+
+## Layout
+
+```
+src/seda_bus/        the library (stdlib only)
+  envelope.py        the unit of work
+  bus.py             SEDABus, Channel, WorkerPool, policies
+  __main__.py        `python -m seda_bus` demo
+tests/               pytest correctness + parallel-scaling tests
+bench/               the raw interpreter microbenchmarks
+```
+
+## Running
+
+```sh
+# correctness (any build)
+PYTHONPATH=src python -m pytest tests/
+
+# the demo
+python -m seda_bus
+PYTHON_GIL=0 python3.14t -m seda_bus        # free-threaded
+
+# free-threaded Python
+sudo apt install python3.14-nogil           # or build with --disable-gil
+python3.14t -VV
+```
+
+## Status
+
+`0.1.0` — working core, tested. Not published to PyPI yet.
