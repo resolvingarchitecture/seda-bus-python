@@ -15,7 +15,7 @@ import time
 
 import pytest
 
-from seda_bus import Envelope, SEDABus
+from seda_bus import Envelope, SEDABus, make_envelope
 
 
 def _gil_enabled() -> bool:
@@ -34,7 +34,7 @@ def _run(concurrency: int, rounds: int, iterations: int) -> float:
     done = threading.Semaphore(0)
 
     def stage(env: Envelope) -> bool:
-        env.headers["digest"] = _cpu_work(env.payload, iterations)
+        env.headers["digest"] = _cpu_work(env.content(), iterations)
         done.release()
         return True
 
@@ -47,7 +47,7 @@ def _run(concurrency: int, rounds: int, iterations: int) -> float:
 
         begin = time.monotonic()
         for r in range(rounds):
-            assert bus.publish(Envelope(to="hash", payload=f"r{r}".encode()))
+            assert bus.publish(make_envelope("hash", f"r{r}".encode()))
         for _ in range(rounds):
             assert done.acquire(timeout=120)
         return time.monotonic() - begin

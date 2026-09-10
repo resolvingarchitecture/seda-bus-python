@@ -5,7 +5,7 @@ A small, broker-less, **staged** message bus. Work is decomposed into stages
 them; each stage has its own concurrency limit so none can monopolise the pool.
 
 ```python
-from seda_bus import SEDABus, Envelope, Delivery
+from seda_bus import SEDABus, make_envelope, Delivery
 
 with SEDABus(workers=8) as bus:
     bus.channel("ingest",    capacity=1000)
@@ -13,14 +13,20 @@ with SEDABus(workers=8) as bus:
     bus.channel("sink",      capacity=1000)
 
     bus.subscribe("ingest",    lambda e: True)
-    bus.subscribe("transform", lambda e: (e.__setattr__("payload", e.payload.upper()), True)[1])
-    bus.subscribe("sink",      lambda e: (print(e.payload), True)[1])
+    bus.subscribe("transform", lambda e: (e.add_content(e.content().upper()), True)[1])
+    bus.subscribe("sink",      lambda e: (print(e.content()), True)[1])
 
     bus.publish(
-        Envelope(to="ingest", payload="hello", slip=["transform", "sink"]),
+        make_envelope("ingest", "hello", slip=["transform", "sink"]),
         on_complete=lambda e: print("done", e.id),
     )
 ```
+
+The bus carries [`ra_common.Envelope`](https://github.com/resolvingarchitecture/ra-common-python)
+— the same wrapper `seda-bus-java` uses via `ra-common-java`. Routing follows the
+envelope's `DynamicRoutingSlip` (LIFO, keyed by `route.service`);
+`make_envelope(to, payload, slip=[...])` keeps the earlier ergonomic shape, and
+`target_service(env)` is the channel an envelope is currently headed for.
 
 ## Why this exists
 

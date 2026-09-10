@@ -10,8 +10,10 @@ import hashlib
 import sys
 import time
 
+from ra_common import Envelope
+
 from .bus import Backpressure, Delivery, SEDABus
-from .envelope import Envelope
+from .envelope import make_envelope
 
 
 def _gil_enabled() -> bool:
@@ -29,8 +31,8 @@ def pipeline_demo() -> None:
         bus.channel("sink", capacity=100)
 
         bus.subscribe("ingest", lambda e: (e.headers.__setitem__("seen_by", "ingest") or True))
-        bus.subscribe("transform", lambda e: (e.__setattr__("payload", e.payload.upper()) or True))
-        bus.subscribe("sink", lambda e: (seen.append(e.payload) or True))
+        bus.subscribe("transform", lambda e: (e.add_content(e.content().upper()) or True))
+        bus.subscribe("sink", lambda e: (seen.append(e.content()) or True))
 
         done = 0
 
@@ -40,7 +42,7 @@ def pipeline_demo() -> None:
 
         for word in ("alpha", "bravo", "charlie", "delta", "echo"):
             bus.publish(
-                Envelope(to="ingest", payload=word, slip=["transform", "sink"]),
+                make_envelope("ingest", word, slip=["transform", "sink"]),
                 on_complete=on_complete,
             )
 
@@ -62,8 +64,9 @@ def parallel_demo() -> None:
 
     def hash_stage(env: Envelope) -> bool:
         acc = b""
+        payload = env.content()
         for i in range(work_per_round):
-            acc = hashlib.sha256(acc + env.payload + i.to_bytes(4, "big")).digest()
+            acc = hashlib.sha256(acc + payload + i.to_bytes(4, "big")).digest()
         env.headers["digest"] = acc.hex()[:8]
         return True
 
@@ -87,8 +90,7 @@ def parallel_demo() -> None:
 
             begin = time.monotonic()
             for r in range(rounds):
-                bus.publish(Envelope(to="hash", payload=f"r{r}".encode()),
-                            on_complete=on_complete)
+                bus.publish(make_envelope("hash", f"r{r}".encode()), on_complete=on_complete)
             while done < rounds and time.monotonic() - begin < 120:
                 time.sleep(0.005)
             elapsed = time.monotonic() - begin

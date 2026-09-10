@@ -28,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from typing import Callable, Protocol, runtime_checkable
 
-from .envelope import Envelope
+from .envelope import Envelope, target_service
 
 log = logging.getLogger("seda_bus")
 
@@ -120,7 +120,20 @@ class Channel:
         self._permits = threading.BoundedSemaphore(concurrency)
         self._consumers: list[Consumer] = []
         self._rr = 0
+        #: per-hop delivery attempts, keyed by envelope id (mirrors
+        #: ``SEDAMessageChannel.attempts`` in seda-bus-java).
+        self._attempts: dict[str, int] = {}
         self.stats = ChannelStats()
+
+    def bump_attempt(self, env_id: str) -> int:
+        with self._lock:
+            n = self._attempts.get(env_id, 0) + 1
+            self._attempts[env_id] = n
+            return n
+
+    def clear_attempt(self, env_id: str) -> None:
+        with self._lock:
+            self._attempts.pop(env_id, None)
 
     # -- consumer registration -------------------------------------------------
     def subscribe(self, consumer: ConsumerLike) -> None:
@@ -271,9 +284,10 @@ class SEDABus:
     ) -> bool:
         if not self._running.is_set() or not self._accepting.is_set():
             return False
-        ch = self._channels.get(env.to)
+        name = target_service(env)
+        ch = self._channels.get(name) if name is not None else None
         if ch is None:
-            log.warning("no channel %r; dropping envelope %s", env.to, env.id)
+            log.warning("no channel %r; dropping envelope %s", name, env.id)
             return False
         if on_complete is not None:
             with self._cb_lock:
@@ -319,7 +333,7 @@ class SEDABus:
             self._dead_letter(ch, env)
             return
 
-        env.attempts += 1
+        attempt = ch.bump_attempt(env.id)
         if ch.delivery is Delivery.PUB_SUB:
             ok = True
             for c in consumers:
@@ -331,12 +345,14 @@ class SEDABus:
 
         if ok:
             ch.stats.delivered += 1
+            ch.clear_attempt(env.id)
             self._complete_hop(env)
-        elif env.attempts < ch.max_attempts:
+        elif attempt < ch.max_attempts:
             ch.stats.nacked += 1
             ch.requeue(env)
         else:
             ch.stats.nacked += 1
+            ch.clear_attempt(env.id)
             self._dead_letter(ch, env)
 
     @staticmethod
@@ -348,7 +364,8 @@ class SEDABus:
             return False
 
     def _complete_hop(self, env: Envelope) -> None:
-        if env.advance():
+        if env.dynamic_routing_slip.peek_at_next_route() is not None:
+            env.ratchet()
             # Re-publish to the next stage. Block briefly so an in-flight
             # itinerary is not silently dropped by a full downstream queue.
             self.publish(env, timeout=5.0)

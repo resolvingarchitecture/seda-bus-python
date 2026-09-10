@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from seda_bus import Backpressure, Delivery, Envelope, SEDABus
+from seda_bus import Backpressure, Delivery, SEDABus, make_envelope
 
 
 @pytest.fixture()
@@ -45,7 +45,7 @@ def test_point_to_point_round_robins(bus):
     bus.subscribe("work", mk("b"))
 
     for i in range(20):
-        assert bus.publish(Envelope(to="work", payload=i))
+        assert bus.publish(make_envelope("work", i))
 
     assert _wait(lambda: hits["a"] + hits["b"] == 20)
     assert hits["a"] == 10 and hits["b"] == 10
@@ -54,11 +54,11 @@ def test_point_to_point_round_robins(bus):
 def test_pub_sub_fans_out(bus):
     seen_a, seen_b = [], []
     bus.channel("events", capacity=100, delivery=Delivery.PUB_SUB)
-    bus.subscribe("events", lambda e: seen_a.append(e.payload) is None)
-    bus.subscribe("events", lambda e: seen_b.append(e.payload) is None)
+    bus.subscribe("events", lambda e: seen_a.append(e.content()) is None)
+    bus.subscribe("events", lambda e: seen_b.append(e.content()) is None)
 
     for i in range(5):
-        bus.publish(Envelope(to="events", payload=i))
+        bus.publish(make_envelope("events", i))
 
     assert _wait(lambda: len(seen_a) == 5 and len(seen_b) == 5)
     assert sorted(seen_a) == sorted(seen_b) == list(range(5))
@@ -75,7 +75,7 @@ def test_routing_slip_visits_every_stage_in_order(bus):
 
     completed = threading.Event()
     bus.publish(
-        Envelope(to="one", payload="x", slip=["two", "three"]),
+        make_envelope("one", "x", slip=["two", "three"]),
         on_complete=lambda _e: completed.set(),
     )
 
@@ -89,7 +89,7 @@ def test_backpressure_reject_when_full(bus):
                 backpressure=Backpressure.REJECT)
     bus.subscribe("slow", lambda e: (gate.wait(5), True)[-1])
 
-    accepted = [bus.publish(Envelope(to="slow", payload=i)) for i in range(10)]
+    accepted = [bus.publish(make_envelope("slow", i)) for i in range(10)]
     gate.set()
 
     # 1 in-flight + 2 queued accepted; the rest rejected.
@@ -115,7 +115,7 @@ def test_nack_retries_then_dead_letters(bus):
         return False
 
     bus.subscribe("flaky", always_fail)
-    bus.publish(Envelope(to="flaky", payload="boom"))
+    bus.publish(make_envelope("flaky", "boom"))
 
     assert dead_seen.wait(5)
     assert attempts["n"] == 3
@@ -135,7 +135,7 @@ def test_shutdown_drains_queued_work(bus):
     bus.channel("drain", capacity=200, concurrency=4)
     bus.subscribe("drain", slow)
     for i in range(50):
-        bus.publish(Envelope(to="drain", payload=i))
+        bus.publish(make_envelope("drain", i))
 
     assert bus.shutdown(timeout=10) is True
     assert done["n"] == 50
@@ -145,26 +145,25 @@ def test_publish_after_pause_is_rejected(bus):
     bus.channel("p", capacity=10)
     bus.subscribe("p", lambda e: True)
     bus.pause()
-    assert bus.publish(Envelope(to="p", payload=1)) is False
+    assert bus.publish(make_envelope("p", 1)) is False
     bus.resume()
-    assert bus.publish(Envelope(to="p", payload=2)) is True
+    assert bus.publish(make_envelope("p", 2)) is True
 
 
 def test_unknown_channel_returns_false(bus):
-    assert bus.publish(Envelope(to="nope", payload=1)) is False
+    assert bus.publish(make_envelope("nope", 1)) is False
 
 
 def test_concurrent_producers_deliver_exactly_once(bus):
     received: list[int] = []
     lock = threading.Lock()
     bus.channel("fan", capacity=5000, concurrency=8)
-    bus.subscribe("fan", lambda e: (lock.acquire(), received.append(e.payload),
+    bus.subscribe("fan", lambda e: (lock.acquire(), received.append(e.content()),
                                     lock.release(), True)[-1])
 
     def producer(base):
         for i in range(500):
-            while not bus.publish(Envelope(to="fan", payload=base + i),
-                                  timeout=1.0):
+            while not bus.publish(make_envelope("fan", base + i), timeout=1.0):
                 pass
 
     threads = [threading.Thread(target=producer, args=(b * 1000,))
