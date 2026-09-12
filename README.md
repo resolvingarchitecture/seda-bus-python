@@ -110,6 +110,33 @@ sudo apt install python3.14-nogil           # or build with --disable-gil
 python3.14t -VV
 ```
 
+## Correctness suite coverage
+
+See `../CORRECTNESS_SUITE.md` for what C1–C7 mean; every port implements
+the same checklist in its own idiom. This port's coverage, all in
+`tests/test_bus.py` unless noted:
+
+| # | Property | Test(s) |
+|---|----------|---------|
+| C1 | Backpressure: Reject | `test_backpressure_reject_when_full` |
+| C1 | Backpressure: Block | `test_backpressure_block_waits_for_room` |
+| C1 | Backpressure: DropNewest | `test_backpressure_drop_newest_matches_reject` |
+| C1 | Backpressure: DropOldest | `test_backpressure_drop_oldest_evicts_instead_of_rejecting` |
+| C2 | Retry exhausts to dead-letter | `test_nack_retries_then_dead_letters` |
+| C2 | Retry succeeds on final attempt, attempt state cleared | `test_nack_retry_succeeds_on_final_attempt_and_clears_attempt_state` |
+| C2 | No consumers dead-letters immediately | `test_channel_with_no_consumers_dead_letters_immediately` |
+| C3 | Consumer exception isolation | `test_consumer_exception_isolation` |
+| C4 | Shutdown accounting, drained in time | `test_shutdown_accounting_matches_published_when_drained_in_time` |
+| C4 | Shutdown accounting, timeout expires first | `test_shutdown_accounting_matches_published_regardless_of_drained_flag` |
+| C5 | Config validation (fails fast on `capacity`/`concurrency` &lt; 1) | `test_channel_config_validation_fails_fast_on_bad_capacity_or_concurrency` |
+| C5 | `max_attempts &lt;= 0` is defined (immediate dead-letter, not a crash) | `test_max_attempts_zero_dead_letters_immediately_without_crashing` |
+| C6 | No thread leak across repeated start/shutdown cycles | `test_no_thread_leak_across_repeated_start_shutdown_cycles` |
+| C7 | Exactly-once under concurrent producers | `test_concurrent_producers_deliver_exactly_once` |
+
+Verified on CPython 3.13.8 (the working `.venv`); 3.14 free-threaded
+verification for this specific suite is covered separately by
+`tests/test_parallel.py` (CPU-bound scaling), not re-run for C1–C6 here.
+
 ## Companion implementations
 
 Same design, other languages:
