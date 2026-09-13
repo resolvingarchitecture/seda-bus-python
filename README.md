@@ -112,7 +112,7 @@ python3.14t -VV
 
 ## Correctness suite coverage
 
-See `../seda-bus-design/CORRECTNESS_SUITE.md` for what C1–C7 mean; every port implements
+See `seda-bus-design/CORRECTNESS_SUITE.md` for what C1–C7 mean; every port implements
 the same checklist in its own idiom. This port's coverage, all in
 `tests/test_bus.py` unless noted:
 
