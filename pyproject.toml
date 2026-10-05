@@ -9,7 +9,7 @@ description = "A small, broker-less, staged (SEDA-style) message bus for Python"
 readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "MIT" }
-authors = [{ name = "Brian Taylor", email = "brian@resolvingarchitecture.dev" }]
+authors = [{ name = "Brian Taylor", email = "brian@resolvingarchitecture.io" }]
 keywords = ["seda", "message-bus", "staged", "concurrency", "free-threading"]
 classifiers = [
     "Programming Language :: Python :: 3.13",
@@ -21,7 +21,7 @@ classifiers = [
 dependencies = ["ra-common"]
 
 [project.urls]
-Homepage = "https://resolvingarchitecture.dev"
+Homepage = "https://resolvingarchitecture.io"
 Repository = "https://github.com/resolvingarchitecture/seda-bus-python"
 
 [project.optional-dependencies]
